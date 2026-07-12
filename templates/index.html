@@ -10,9 +10,14 @@
 <body>
   <main>
     <header class="topbar">
-      <h1>🍿 Movie Night <span class="muted">— {{.TheaterName}}</span></h1>
+      <div class="brand">
+        <h1>🍿 Movie Night</h1>
+        <div class="theater-pill">
+          <span class="theater-name">{{.TheaterName}}</span>
+          <a class="switch-link" href="/theaters">switch</a>
+        </div>
+      </div>
       <div>
-        <a class="linkish" href="/theaters">switch theater</a>
         <span class="muted">hi, {{.Username}}</span>
         <form class="inline" method="post" action="/logout">
           <button type="submit" class="linkish">sign out</button>
