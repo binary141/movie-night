@@ -24,7 +24,7 @@
         {{range .Theaters}}
         <li>
           <a href="/t/{{.ID}}/">{{.Name}}</a>
-          <span class="muted">invite code: {{.InviteCode}}</span>
+          <span class="muted">invite code: {{template "invite-code" .InviteCode}}</span>
         </li>
         {{end}}
       </ul>

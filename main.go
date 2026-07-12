@@ -45,6 +45,7 @@ func main() {
 	mux.HandleFunc("POST /login", app.login)
 	mux.HandleFunc("POST /register", app.register)
 	mux.HandleFunc("POST /logout", app.logout)
+	mux.HandleFunc("GET /invite/{code}", app.invite)
 	mux.Handle("GET /{$}", app.requireUser(app.rootRedirect))
 	mux.Handle("GET /theaters", app.requireUser(app.theatersPage))
 	mux.Handle("POST /theaters", app.requireUser(app.createTheater))

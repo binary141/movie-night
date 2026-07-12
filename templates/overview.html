@@ -30,7 +30,7 @@
 
     <div class="card">
       <h2>Members</h2>
-      <p class="muted">invite code: {{.InviteCode}}</p>
+      <p class="muted">invite code: {{template "invite-code" .InviteCode}}</p>
       <ul class="watched">
         {{range .Members}}
         <li>

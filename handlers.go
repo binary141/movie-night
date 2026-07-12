@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -31,7 +32,8 @@ const theaterKey ctxKey = "theater"
 const sessionCookie = "movie_night_session"
 
 type loginData struct {
-	Error string
+	Error  string
+	Invite string
 }
 
 type theatersData struct {
@@ -124,40 +126,43 @@ func currentTheater(r *http.Request) Theater {
 }
 
 func (a *App) loginPage(w http.ResponseWriter, r *http.Request) {
+	invite := strings.TrimSpace(r.URL.Query().Get("invite"))
 	if cookie, err := r.Cookie(sessionCookie); err == nil {
-		if _, err := a.store.GetSessionUser(r.Context(), cookie.Value); err == nil {
-			http.Redirect(w, r, "/", http.StatusSeeOther)
+		if user, err := a.store.GetSessionUser(r.Context(), cookie.Value); err == nil {
+			a.redirectAfterAuth(w, r, user.ID, invite)
 			return
 		}
 	}
-	a.render(w, "login.html", loginData{})
+	a.render(w, "login.html", loginData{Invite: invite})
 }
 
 func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := r.FormValue("password")
+	invite := strings.TrimSpace(r.FormValue("invite"))
 
 	id, hash, err := a.store.GetUserCredentials(r.Context(), username)
 	if err != nil || bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		a.render(w, "login.html", loginData{Error: "Invalid username or password."})
+		a.render(w, "login.html", loginData{Error: "Invalid username or password.", Invite: invite})
 		return
 	}
-	a.startSession(w, r, id)
+	a.startSession(w, r, id, invite)
 }
 
 func (a *App) register(w http.ResponseWriter, r *http.Request) {
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := r.FormValue("password")
+	invite := strings.TrimSpace(r.FormValue("invite"))
 
 	if username == "" || len(username) > 50 {
 		w.WriteHeader(http.StatusBadRequest)
-		a.render(w, "login.html", loginData{Error: "Username must be 1-50 characters."})
+		a.render(w, "login.html", loginData{Error: "Username must be 1-50 characters.", Invite: invite})
 		return
 	}
 	if len(password) < 4 {
 		w.WriteHeader(http.StatusBadRequest)
-		a.render(w, "login.html", loginData{Error: "Password must be at least 4 characters."})
+		a.render(w, "login.html", loginData{Error: "Password must be at least 4 characters.", Invite: invite})
 		return
 	}
 
@@ -171,16 +176,16 @@ func (a *App) register(w http.ResponseWriter, r *http.Request) {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			w.WriteHeader(http.StatusConflict)
-			a.render(w, "login.html", loginData{Error: "That username is already taken."})
+			a.render(w, "login.html", loginData{Error: "That username is already taken.", Invite: invite})
 			return
 		}
 		a.serverError(w, err)
 		return
 	}
-	a.startSession(w, r, id)
+	a.startSession(w, r, id, invite)
 }
 
-func (a *App) startSession(w http.ResponseWriter, r *http.Request, userID int) {
+func (a *App) startSession(w http.ResponseWriter, r *http.Request, userID int, invite string) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		a.serverError(w, err)
@@ -199,6 +204,21 @@ func (a *App) startSession(w http.ResponseWriter, r *http.Request, userID int) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   30 * 24 * 60 * 60,
 	})
+	a.redirectAfterAuth(w, r, userID, invite)
+}
+
+// redirectAfterAuth sends a freshly authenticated user straight into the
+// theater they were invited to, joining them if needed. With no invite
+// code it falls back to the normal root redirect.
+func (a *App) redirectAfterAuth(w http.ResponseWriter, r *http.Request, userID int, invite string) {
+	if invite != "" {
+		theater, err := a.store.JoinTheaterByCode(r.Context(), invite, userID)
+		if err == nil {
+			http.Redirect(w, r, fmt.Sprintf("/t/%d/", theater.ID), http.StatusSeeOther)
+			return
+		}
+		log.Printf("invite join %q: %v", invite, err)
+	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -210,6 +230,20 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 		Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, MaxAge: -1,
 	})
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+// invite handles a shared invite link. Logged-in users join the theater
+// immediately; logged-out visitors are sent to sign in/register first, and
+// pick the theater back up once authenticated.
+func (a *App) invite(w http.ResponseWriter, r *http.Request) {
+	code := strings.TrimSpace(strings.ToLower(r.PathValue("code")))
+	if cookie, err := r.Cookie(sessionCookie); err == nil {
+		if user, err := a.store.GetSessionUser(r.Context(), cookie.Value); err == nil {
+			a.redirectAfterAuth(w, r, user.ID, code)
+			return
+		}
+	}
+	http.Redirect(w, r, "/login?invite="+url.QueryEscape(code), http.StatusSeeOther)
 }
 
 // --- pages ---
