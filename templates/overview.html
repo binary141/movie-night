@@ -26,18 +26,39 @@
 
     <p><a href="/t/{{.TheaterID}}/">&larr; back to board</a></p>
 
+    {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+
     <div class="card">
       <h2>Members</h2>
       <p class="muted">invite code: {{.InviteCode}}</p>
       <ul class="watched">
         {{range .Members}}
         <li>
-          <span>{{.Username}}</span>
-          <span class="muted">joined {{.JoinedAt.Format "Jan 2, 2006"}}</span>
+          <span>{{.Username}}{{if eq .UserID $.OwnerID}} <span class="muted">(owner)</span>{{end}}</span>
+          <span class="actions">
+            <span class="muted">joined {{.JoinedAt.Format "Jan 2, 2006"}}</span>
+            {{if and $.IsOwner (ne .UserID $.OwnerID)}}
+            <form class="inline" method="post" action="/t/{{$.TheaterID}}/members/{{.UserID}}/remove"
+                  onsubmit="return confirm('Remove {{.Username}} from this theater? Their pending vote will be cleared.')">
+              <button type="submit" class="linkish">remove</button>
+            </form>
+            {{end}}
+          </span>
         </li>
         {{end}}
       </ul>
     </div>
+
+    {{if .IsOwner}}
+    <div class="card">
+      <h2>Delete theater</h2>
+      <p class="muted">This permanently removes the theater, its members, movies, and votes for everyone. This can't be undone.</p>
+      <form method="post" action="/t/{{.TheaterID}}/delete"
+            onsubmit="return confirm('Permanently delete {{.TheaterName}}? This can\'t be undone.')">
+        <button type="submit">Delete theater</button>
+      </form>
+    </div>
+    {{end}}
   </main>
 </body>
 </html>

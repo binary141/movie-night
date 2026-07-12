@@ -52,6 +52,8 @@ func main() {
 	mux.Handle("GET /search", app.requireUser(app.search))
 	mux.Handle("GET /t/{theaterID}/", app.requireUser(app.requireTheaterMember(app.index)))
 	mux.Handle("GET /t/{theaterID}/overview", app.requireUser(app.requireTheaterMember(app.theaterOverview)))
+	mux.Handle("POST /t/{theaterID}/delete", app.requireUser(app.requireTheaterMember(app.deleteTheater)))
+	mux.Handle("POST /t/{theaterID}/members/{userID}/remove", app.requireUser(app.requireTheaterMember(app.removeMember)))
 	mux.Handle("POST /t/{theaterID}/movies", app.requireUser(app.requireTheaterMember(app.addMovie)))
 	mux.Handle("POST /t/{theaterID}/vote/{id}", app.requireUser(app.requireTheaterMember(app.vote)))
 	mux.Handle("POST /t/{theaterID}/watched/{id}", app.requireUser(app.requireTheaterMember(app.markWatched)))

@@ -54,6 +54,9 @@ type overviewData struct {
 	TheaterName string
 	InviteCode  string
 	Members     []MemberRow
+	IsOwner     bool
+	OwnerID     int
+	Error       string
 }
 
 // --- auth ---
@@ -285,7 +288,48 @@ func (a *App) theaterOverview(w http.ResponseWriter, r *http.Request) {
 		TheaterName: theater.Name,
 		InviteCode:  theater.InviteCode,
 		Members:     members,
+		IsOwner:     currentUser(r).ID == theater.CreatedBy,
+		OwnerID:     theater.CreatedBy,
 	})
+}
+
+// deleteTheater lets the theater's creator permanently delete it; this
+// cascades to its members, movies, and votes.
+func (a *App) deleteTheater(w http.ResponseWriter, r *http.Request) {
+	theater := currentTheater(r)
+	if currentUser(r).ID != theater.CreatedBy {
+		http.Error(w, "only the theater owner can do that", http.StatusForbidden)
+		return
+	}
+	if err := a.store.DeleteTheater(r.Context(), theater.ID); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	http.Redirect(w, r, "/theaters", http.StatusSeeOther)
+}
+
+// removeMember lets the theater's creator remove another member, clearing
+// their vote on any pending movie so it no longer counts toward the tally.
+func (a *App) removeMember(w http.ResponseWriter, r *http.Request) {
+	theater := currentTheater(r)
+	if currentUser(r).ID != theater.CreatedBy {
+		http.Error(w, "only the theater owner can do that", http.StatusForbidden)
+		return
+	}
+	targetID, err := strconv.Atoi(r.PathValue("userID"))
+	if err != nil {
+		http.Error(w, "bad user id", http.StatusBadRequest)
+		return
+	}
+	if targetID == theater.CreatedBy {
+		http.Error(w, "the owner can't be removed", http.StatusBadRequest)
+		return
+	}
+	if err := a.store.RemoveMember(r.Context(), theater.ID, targetID); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/t/%d/overview", theater.ID), http.StatusSeeOther)
 }
 
 func (a *App) addMovie(w http.ResponseWriter, r *http.Request) {

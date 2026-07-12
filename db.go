@@ -172,6 +172,7 @@ type Theater struct {
 	ID         int
 	Name       string
 	InviteCode string
+	CreatedBy  int
 }
 
 type MovieRow struct {
@@ -287,6 +288,7 @@ func (s *Store) CreateTheater(ctx context.Context, name string, creatorID int) (
 
 	var t Theater
 	t.Name = name
+	t.CreatedBy = creatorID
 	for attempt := 0; attempt < 5; attempt++ {
 		code, err := randomCode()
 		if err != nil {
@@ -358,13 +360,14 @@ func (s *Store) ListUserTheaters(ctx context.Context, userID int) ([]Theater, er
 }
 
 type MemberRow struct {
+	UserID   int
 	Username string
 	JoinedAt time.Time
 }
 
 func (s *Store) ListMembers(ctx context.Context, theaterID int) ([]MemberRow, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT u.username, tm.joined_at FROM theater_members tm
+		`SELECT u.id, u.username, tm.joined_at FROM theater_members tm
 		 JOIN users u ON u.id = tm.user_id
 		 WHERE tm.theater_id = $1
 		 ORDER BY tm.joined_at ASC`, theaterID)
@@ -376,7 +379,7 @@ func (s *Store) ListMembers(ctx context.Context, theaterID int) ([]MemberRow, er
 	var members []MemberRow
 	for rows.Next() {
 		var m MemberRow
-		if err := rows.Scan(&m.Username, &m.JoinedAt); err != nil {
+		if err := rows.Scan(&m.UserID, &m.Username, &m.JoinedAt); err != nil {
 			return nil, err
 		}
 		members = append(members, m)
@@ -395,9 +398,36 @@ func (s *Store) IsMember(ctx context.Context, theaterID, userID int) (bool, erro
 func (s *Store) GetTheater(ctx context.Context, theaterID int) (Theater, error) {
 	var t Theater
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, invite_code FROM theaters WHERE id = $1`, theaterID).
-		Scan(&t.ID, &t.Name, &t.InviteCode)
+		`SELECT id, name, invite_code, created_by FROM theaters WHERE id = $1`, theaterID).
+		Scan(&t.ID, &t.Name, &t.InviteCode, &t.CreatedBy)
 	return t, err
+}
+
+// DeleteTheater removes the theater and cascades to its members, movies,
+// and votes.
+func (s *Store) DeleteTheater(ctx context.Context, theaterID int) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM theaters WHERE id = $1`, theaterID)
+	return err
+}
+
+// RemoveMember drops a user from a theater and clears their vote there, so
+// they no longer count toward any pending movie's tally.
+func (s *Store) RemoveMember(ctx context.Context, theaterID, userID int) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM votes WHERE theater_id = $1 AND user_id = $2`, theaterID, userID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM theater_members WHERE theater_id = $1 AND user_id = $2`, theaterID, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // GetCachedSearch returns cached OMDb results for a normalized query.
