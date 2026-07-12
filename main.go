@@ -38,7 +38,7 @@ func main() {
 		log.Print("OMDB_API_KEY not set — movie search disabled, manual titles still work")
 	}
 
-	app := &App{store: &Store{pool: pool}, tmpl: tmpl, omdb: omdb}
+	app := &App{store: &Store{pool: pool}, tmpl: tmpl, omdb: omdb, hub: NewHub()}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /login", app.loginPage)
@@ -46,6 +46,8 @@ func main() {
 	mux.HandleFunc("POST /register", app.register)
 	mux.HandleFunc("POST /logout", app.logout)
 	mux.Handle("GET /{$}", app.withUser(app.index))
+	mux.Handle("GET /board", app.requireUser(app.board))
+	mux.Handle("GET /ws", app.requireUser(app.serveWS))
 	mux.Handle("POST /movies", app.requireUser(app.addMovie))
 	mux.Handle("GET /search", app.requireUser(app.search))
 	mux.Handle("POST /vote/{id}", app.requireUser(app.vote))
