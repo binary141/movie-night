@@ -37,7 +37,7 @@ func main() {
 	mux.HandleFunc("POST /login", app.login)
 	mux.HandleFunc("POST /register", app.register)
 	mux.HandleFunc("POST /logout", app.logout)
-	mux.Handle("GET /{$}", app.requireUser(app.index))
+	mux.Handle("GET /{$}", app.withUser(app.index))
 	mux.Handle("POST /movies", app.requireUser(app.addMovie))
 	mux.Handle("POST /vote/{id}", app.requireUser(app.vote))
 	mux.Handle("POST /watched/{id}", app.requireUser(app.markWatched))

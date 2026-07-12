@@ -32,6 +32,7 @@ type loginData struct {
 }
 
 type pageData struct {
+	LoggedIn bool
 	Username string
 	Movies   []MovieRow
 	Watched  []WatchedRow
@@ -55,6 +56,18 @@ func (a *App) requireUser(next func(http.ResponseWriter, *http.Request)) http.Ha
 			return
 		}
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
+	})
+}
+
+// withUser attaches the session user if present but never blocks the request.
+func (a *App) withUser(next func(http.ResponseWriter, *http.Request)) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if cookie, err := r.Cookie(sessionCookie); err == nil {
+			if user, err := a.store.GetSessionUser(r.Context(), cookie.Value); err == nil {
+				r = r.WithContext(context.WithValue(r.Context(), userKey, user))
+			}
+		}
+		next(w, r)
 	})
 }
 
@@ -212,7 +225,7 @@ func (a *App) boardData(r *http.Request) (pageData, error) {
 	if err != nil {
 		return pageData{}, err
 	}
-	return pageData{Username: user.Username, Movies: movies, Watched: watched}, nil
+	return pageData{LoggedIn: user.ID != 0, Username: user.Username, Movies: movies, Watched: watched}, nil
 }
 
 func (a *App) renderBoard(w http.ResponseWriter, r *http.Request) {
