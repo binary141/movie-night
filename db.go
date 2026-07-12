@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,16 +21,27 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS movies (
 	id SERIAL PRIMARY KEY,
 	title TEXT NOT NULL,
+	year TEXT NOT NULL DEFAULT '',
+	poster TEXT NOT NULL DEFAULT '',
 	added_by INT NOT NULL REFERENCES users(id),
 	watched BOOLEAN NOT NULL DEFAULT false,
 	watched_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS year TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS poster TEXT NOT NULL DEFAULT '';
+
 -- user_id is the primary key: each user has at most one active vote.
 CREATE TABLE IF NOT EXISTS votes (
 	user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
 	movie_id INT NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS search_cache (
+	query TEXT PRIMARY KEY,
+	results JSONB NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -56,6 +69,8 @@ type User struct {
 type MovieRow struct {
 	ID        int
 	Title     string
+	Year      string
+	Poster    string
 	AddedBy   string
 	Votes     int
 	VotedByMe bool
@@ -101,22 +116,23 @@ func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
-func (s *Store) AddMovie(ctx context.Context, title string, userID int) error {
+func (s *Store) AddMovie(ctx context.Context, title, year, poster string, userID int) error {
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO movies (title, added_by) VALUES ($1, $2)`, title, userID)
+		`INSERT INTO movies (title, year, poster, added_by) VALUES ($1, $2, $3, $4)`,
+		title, year, poster, userID)
 	return err
 }
 
 func (s *Store) ListMovies(ctx context.Context, currentUserID int) ([]MovieRow, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT m.id, m.title, u.username,
+		`SELECT m.id, m.title, m.year, m.poster, u.username,
 		        count(v.user_id) AS votes,
 		        coalesce(bool_or(v.user_id = $1), false) AS voted_by_me
 		 FROM movies m
 		 JOIN users u ON u.id = m.added_by
 		 LEFT JOIN votes v ON v.movie_id = m.id
 		 WHERE NOT m.watched
-		 GROUP BY m.id, m.title, u.username
+		 GROUP BY m.id, u.username
 		 ORDER BY votes DESC, m.created_at ASC`, currentUserID)
 	if err != nil {
 		return nil, err
@@ -126,7 +142,7 @@ func (s *Store) ListMovies(ctx context.Context, currentUserID int) ([]MovieRow, 
 	var movies []MovieRow
 	for rows.Next() {
 		var m MovieRow
-		if err := rows.Scan(&m.ID, &m.Title, &m.AddedBy, &m.Votes, &m.VotedByMe); err != nil {
+		if err := rows.Scan(&m.ID, &m.Title, &m.Year, &m.Poster, &m.AddedBy, &m.Votes, &m.VotedByMe); err != nil {
 			return nil, err
 		}
 		movies = append(movies, m)
@@ -151,6 +167,35 @@ func (s *Store) ListWatched(ctx context.Context) ([]WatchedRow, error) {
 		watched = append(watched, w)
 	}
 	return watched, rows.Err()
+}
+
+// GetCachedSearch returns cached OMDb results for a normalized query.
+// Empty result sets are cached too — "no matches" also costs an API credit.
+func (s *Store) GetCachedSearch(ctx context.Context, query string) ([]SearchResult, bool, error) {
+	var results []SearchResult
+	err := s.pool.QueryRow(ctx,
+		`SELECT results FROM search_cache
+		 WHERE query = $1 AND created_at > now() - interval '7 days'`,
+		query).Scan(&results)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return results, true, nil
+}
+
+func (s *Store) CacheSearch(ctx context.Context, query string, results []SearchResult) error {
+	data, err := json.Marshal(results)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx,
+		`INSERT INTO search_cache (query, results) VALUES ($1, $2::jsonb)
+		 ON CONFLICT (query) DO UPDATE SET results = EXCLUDED.results, created_at = now()`,
+		query, string(data))
+	return err
 }
 
 // ToggleVote removes the user's vote if it is already on this movie,

@@ -8,10 +8,15 @@ Built with Go + Postgres on the backend and [htmx](https://htmx.org) on the fron
 ## Running
 
 ```sh
+cp .env.example .env   # add your OMDb API key (https://www.omdbapi.com/apikey.aspx)
 docker compose up --build
 ```
 
 Then open http://localhost:8080, create an account, and start adding movies.
+Typing in the suggest box searches [OMDb](https://www.omdbapi.com) by title so
+you can pick the exact movie (with year and poster). Search results are cached
+in Postgres for 7 days, so repeat searches don't spend API credits. Without an
+API key the app still works — you just add titles as typed.
 
 ## How it works
 

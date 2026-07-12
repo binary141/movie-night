@@ -19,6 +19,7 @@ import (
 type App struct {
 	store *Store
 	tmpl  *template.Template
+	omdb  *OMDB
 }
 
 type ctxKey string
@@ -178,13 +179,59 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) addMovie(w http.ResponseWriter, r *http.Request) {
 	title := strings.TrimSpace(r.FormValue("title"))
-	if title != "" && len(title) <= 200 {
-		if err := a.store.AddMovie(r.Context(), title, currentUser(r).ID); err != nil {
+	year := strings.TrimSpace(r.FormValue("year"))
+	poster := strings.TrimSpace(r.FormValue("poster"))
+	if title != "" && len(title) <= 200 && len(year) <= 20 && len(poster) <= 500 {
+		if err := a.store.AddMovie(r.Context(), title, year, poster, currentUser(r).ID); err != nil {
 			a.serverError(w, err)
 			return
 		}
 	}
 	a.renderBoard(w, r)
+}
+
+type searchData struct {
+	Results []SearchResult
+	Message string
+}
+
+func (a *App) search(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.FormValue("title"))
+	if len(query) < 2 {
+		a.render(w, "search-results", searchData{})
+		return
+	}
+
+	// Cache key: case- and whitespace-insensitive so "The Matrix" and
+	// "the  matrix" share one entry.
+	key := strings.ToLower(strings.Join(strings.Fields(query), " "))
+
+	results, hit, err := a.store.GetCachedSearch(r.Context(), key)
+	if err != nil {
+		log.Printf("search cache read %q: %v", key, err)
+	}
+	if !hit {
+		if a.omdb == nil {
+			a.render(w, "search-results", searchData{
+				Message: "Movie search is not configured — set OMDB_API_KEY in .env. You can still add the title as typed.",
+			})
+			return
+		}
+		results, err = a.omdb.Search(r.Context(), query)
+		if err != nil {
+			log.Printf("omdb search %q: %v", query, err)
+			a.render(w, "search-results", searchData{Message: "Search failed — you can still add the title as typed."})
+			return
+		}
+		if err := a.store.CacheSearch(r.Context(), key, results); err != nil {
+			log.Printf("search cache write %q: %v", key, err)
+		}
+	}
+
+	if len(results) > 6 {
+		results = results[:6]
+	}
+	a.render(w, "search-results", searchData{Results: results})
 }
 
 func (a *App) vote(w http.ResponseWriter, r *http.Request) {

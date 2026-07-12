@@ -1,0 +1,29 @@
+{{define "search-results"}}
+{{if .Message}}<p class="muted">{{.Message}}</p>{{end}}
+{{if .Results}}
+<ul class="search-results">
+  {{range .Results}}
+  <li>
+    <div class="movie-main">
+      {{if .Poster}}
+      <img class="poster-thumb" src="{{.Poster}}" alt="" loading="lazy">
+      {{else}}
+      <div class="poster-thumb placeholder">🎬</div>
+      {{end}}
+      <div class="info">
+        <strong>{{.Title}}</strong>
+        <div class="muted">{{.Year}}</div>
+      </div>
+    </div>
+    <form hx-post="/movies" hx-target="#movie-board"
+          hx-on::after-request="document.getElementById('search-results').innerHTML = ''; document.getElementById('title-input').value = '';">
+      <input type="hidden" name="title" value="{{.Title}}">
+      <input type="hidden" name="year" value="{{.Year}}">
+      <input type="hidden" name="poster" value="{{.Poster}}">
+      <button type="submit">+ Add</button>
+    </form>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+{{end}}

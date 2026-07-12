@@ -25,11 +25,15 @@
 
     {{if .LoggedIn}}
     <form class="add-form" hx-post="/movies" hx-target="#movie-board"
-          hx-on::after-request="if (event.detail.successful) this.reset()">
-      <input type="text" name="title" placeholder="Suggest a movie…" maxlength="200" required>
+          hx-on::after-request="if (event.detail.successful && event.detail.elt === this) { this.reset(); document.getElementById('search-results').innerHTML = ''; }">
+      <input type="text" name="title" id="title-input" placeholder="Search for a movie…"
+             maxlength="200" required autocomplete="off"
+             hx-get="/search" hx-trigger="input changed delay:400ms"
+             hx-target="#search-results" hx-sync="this:replace">
       <button type="submit" class="primary">Add</button>
     </form>
-    <p class="muted">Everyone gets one vote — click again to remove it, or vote elsewhere to move it.</p>
+    <div id="search-results"></div>
+    <p class="muted">Pick a search result (or just hit Add). Everyone gets one vote — click again to remove it, or vote elsewhere to move it.</p>
     {{else}}
     <p class="muted"><a href="/login">Sign in</a> to suggest a movie or cast your vote.</p>
     {{end}}

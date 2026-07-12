@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,6 +17,8 @@ import (
 var templateFS embed.FS
 
 func main() {
+	loadDotEnv(".env")
+
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		dbURL = "postgres://movienight:movienight@localhost:5432/movienight?sslmode=disable"
@@ -30,7 +33,12 @@ func main() {
 	pool := mustConnect(dbURL)
 	defer pool.Close()
 
-	app := &App{store: &Store{pool: pool}, tmpl: tmpl}
+	omdb := NewOMDB(os.Getenv("OMDB_API_KEY"))
+	if omdb == nil {
+		log.Print("OMDB_API_KEY not set — movie search disabled, manual titles still work")
+	}
+
+	app := &App{store: &Store{pool: pool}, tmpl: tmpl, omdb: omdb}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /login", app.loginPage)
@@ -39,11 +47,36 @@ func main() {
 	mux.HandleFunc("POST /logout", app.logout)
 	mux.Handle("GET /{$}", app.withUser(app.index))
 	mux.Handle("POST /movies", app.requireUser(app.addMovie))
+	mux.Handle("GET /search", app.requireUser(app.search))
 	mux.Handle("POST /vote/{id}", app.requireUser(app.vote))
 	mux.Handle("POST /watched/{id}", app.requireUser(app.markWatched))
 
 	log.Printf("movie-night listening on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))
+}
+
+// loadDotEnv reads KEY=VALUE lines from a .env file into the environment.
+// Real environment variables take precedence; a missing file is fine.
+func loadDotEnv(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if os.Getenv(key) == "" {
+			os.Setenv(key, value)
+		}
+	}
 }
 
 // mustConnect retries so the app can come up alongside postgres in compose.

@@ -5,9 +5,16 @@
   <ul class="movies">
     {{range .Movies}}
     <li>
-      <div class="info">
-        <strong>{{.Title}}</strong>
-        <div class="muted">added by {{.AddedBy}}</div>
+      <div class="movie-main">
+        {{if .Poster}}
+        <img class="poster" src="{{.Poster}}" alt="" loading="lazy">
+        {{else}}
+        <div class="poster placeholder">🎬</div>
+        {{end}}
+        <div class="info">
+          <strong>{{.Title}}</strong>{{if .Year}} <span class="muted">({{.Year}})</span>{{end}}
+          <div class="muted">added by {{.AddedBy}}</div>
+        </div>
       </div>
       <div class="actions">
         <span class="count">{{.Votes}} vote{{if ne .Votes 1}}s{{end}}</span>
