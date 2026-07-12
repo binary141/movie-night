@@ -26,11 +26,13 @@ CREATE TABLE IF NOT EXISTS movies (
 	added_by INT NOT NULL REFERENCES users(id),
 	watched BOOLEAN NOT NULL DEFAULT false,
 	watched_at TIMESTAMPTZ,
+	final_votes INT NOT NULL DEFAULT 0,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE movies ADD COLUMN IF NOT EXISTS year TEXT NOT NULL DEFAULT '';
 ALTER TABLE movies ADD COLUMN IF NOT EXISTS poster TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS final_votes INT NOT NULL DEFAULT 0;
 
 -- user_id is the primary key: each user has at most one active vote.
 CREATE TABLE IF NOT EXISTS votes (
@@ -77,8 +79,9 @@ type MovieRow struct {
 }
 
 type WatchedRow struct {
-	Title     string
-	WatchedAt time.Time
+	Title      string
+	WatchedAt  time.Time
+	FinalVotes int
 }
 
 func (s *Store) CreateUser(ctx context.Context, username, passwordHash string) (int, error) {
@@ -152,7 +155,7 @@ func (s *Store) ListMovies(ctx context.Context, currentUserID int) ([]MovieRow, 
 
 func (s *Store) ListWatched(ctx context.Context) ([]WatchedRow, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT title, watched_at FROM movies WHERE watched ORDER BY watched_at DESC LIMIT 10`)
+		`SELECT title, watched_at, final_votes FROM movies WHERE watched ORDER BY watched_at DESC LIMIT 10`)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +164,7 @@ func (s *Store) ListWatched(ctx context.Context) ([]WatchedRow, error) {
 	var watched []WatchedRow
 	for rows.Next() {
 		var w WatchedRow
-		if err := rows.Scan(&w.Title, &w.WatchedAt); err != nil {
+		if err := rows.Scan(&w.Title, &w.WatchedAt, &w.FinalVotes); err != nil {
 			return nil, err
 		}
 		watched = append(watched, w)
@@ -234,7 +237,9 @@ func (s *Store) MarkWatched(ctx context.Context, movieID int) error {
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx,
-		`UPDATE movies SET watched = true, watched_at = now() WHERE id = $1 AND NOT watched`,
+		`UPDATE movies SET watched = true, watched_at = now(),
+		        final_votes = (SELECT count(*) FROM votes WHERE movie_id = $1)
+		 WHERE id = $1 AND NOT watched`,
 		movieID); err != nil {
 		return err
 	}

@@ -40,7 +40,7 @@
   <h2>Recently watched</h2>
   <ul class="watched">
     {{range .Watched}}
-    <li><span>{{.Title}}</span> <span class="muted">{{.WatchedAt.Format "Jan 2, 2006"}}</span></li>
+    <li><span>{{.Title}}</span> <span class="muted">{{.WatchedAt.Format "Jan 2, 2006"}} · {{.FinalVotes}} vote{{if ne .FinalVotes 1}}s{{end}}</span></li>
     {{end}}
   </ul>
   {{end}}
