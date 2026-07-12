@@ -357,6 +357,33 @@ func (s *Store) ListUserTheaters(ctx context.Context, userID int) ([]Theater, er
 	return theaters, rows.Err()
 }
 
+type MemberRow struct {
+	Username string
+	JoinedAt time.Time
+}
+
+func (s *Store) ListMembers(ctx context.Context, theaterID int) ([]MemberRow, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT u.username, tm.joined_at FROM theater_members tm
+		 JOIN users u ON u.id = tm.user_id
+		 WHERE tm.theater_id = $1
+		 ORDER BY tm.joined_at ASC`, theaterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var members []MemberRow
+	for rows.Next() {
+		var m MemberRow
+		if err := rows.Scan(&m.Username, &m.JoinedAt); err != nil {
+			return nil, err
+		}
+		members = append(members, m)
+	}
+	return members, rows.Err()
+}
+
 func (s *Store) IsMember(ctx context.Context, theaterID, userID int) (bool, error) {
 	var ok bool
 	err := s.pool.QueryRow(ctx,

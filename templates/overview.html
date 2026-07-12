@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Movie Night — {{.TheaterName}}</title>
+  {{template "style"}}
+</head>
+<body>
+  <main>
+    <header class="topbar">
+      <div class="brand">
+        <h1>🍿 Movie Night</h1>
+        <div class="theater-pill">
+          <span class="theater-name">{{.TheaterName}}</span>
+          <a class="switch-link" href="/theaters">switch</a>
+        </div>
+      </div>
+      <div>
+        <span class="muted">hi, {{.Username}}</span>
+        <form class="inline" method="post" action="/logout">
+          <button type="submit" class="linkish">sign out</button>
+        </form>
+      </div>
+    </header>
+
+    <p><a href="/t/{{.TheaterID}}/">&larr; back to board</a></p>
+
+    <div class="card">
+      <h2>Members</h2>
+      <p class="muted">invite code: {{.InviteCode}}</p>
+      <ul class="watched">
+        {{range .Members}}
+        <li>
+          <span>{{.Username}}</span>
+          <span class="muted">joined {{.JoinedAt.Format "Jan 2, 2006"}}</span>
+        </li>
+        {{end}}
+      </ul>
+    </div>
+  </main>
+</body>
+</html>

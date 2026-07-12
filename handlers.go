@@ -48,6 +48,14 @@ type pageData struct {
 	Watched     []WatchedRow
 }
 
+type overviewData struct {
+	Username    string
+	TheaterID   int
+	TheaterName string
+	InviteCode  string
+	Members     []MemberRow
+}
+
 // --- auth ---
 
 func (a *App) requireUser(next func(http.ResponseWriter, *http.Request)) http.Handler {
@@ -262,6 +270,22 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.render(w, "index.html", data)
+}
+
+func (a *App) theaterOverview(w http.ResponseWriter, r *http.Request) {
+	theater := currentTheater(r)
+	members, err := a.store.ListMembers(r.Context(), theater.ID)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.render(w, "overview.html", overviewData{
+		Username:    currentUser(r).Username,
+		TheaterID:   theater.ID,
+		TheaterName: theater.Name,
+		InviteCode:  theater.InviteCode,
+		Members:     members,
+	})
 }
 
 func (a *App) addMovie(w http.ResponseWriter, r *http.Request) {
