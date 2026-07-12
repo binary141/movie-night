@@ -18,7 +18,7 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - "3411:3411"
     environment:
       DATABASE_URL: postgres://movienight:movienight@db:5432/movienight?sslmode=disable
     env_file:

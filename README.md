@@ -12,7 +12,7 @@ cp .env.example .env   # add your OMDb API key (https://www.omdbapi.com/apikey.a
 docker compose up --build
 ```
 
-Then open http://localhost:8080, create an account, and start adding movies.
+Then open http://localhost:3411, create an account, and start adding movies.
 Typing in the suggest box searches [OMDb](https://www.omdbapi.com) by title so
 you can pick the exact movie (with year and poster). Search results are cached
 in Postgres forever, so a repeat search never spends API credits. Without an

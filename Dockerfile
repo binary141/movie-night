@@ -9,5 +9,5 @@ FROM alpine:3.20
 RUN adduser -D app
 USER app
 COPY --from=build /movie-night /usr/local/bin/movie-night
-EXPOSE 8080
+EXPOSE 3411
 CMD ["movie-night"]

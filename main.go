@@ -25,7 +25,7 @@ func main() {
 	}
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "3411"
 	}
 
 	tmpl := template.Must(template.ParseFS(templateFS, "templates/*.html"))
