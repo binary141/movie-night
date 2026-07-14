@@ -69,6 +69,25 @@
     gap: 1rem; padding-bottom: 1.5rem; margin-bottom: 1.5rem;
     border-bottom: 1px solid var(--base900);
   }
+  .brand {
+    display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  }
+  .theater-pill {
+    display: inline-flex; align-items: center; gap: 0.6rem;
+    background: var(--prim50); border: 1.5px solid var(--prim100);
+    border-radius: 999px; padding: 0.3rem 0.4rem 0.3rem 0.9rem;
+  }
+  .theater-name {
+    font-size: 0.9rem; font-weight: 600; color: var(--prim600);
+    letter-spacing: -0.014em; white-space: nowrap; text-decoration: none;
+  }
+  .theater-name:hover { text-decoration: underline; }
+  .switch-link {
+    font-size: 0.8rem; font-weight: 500; color: var(--base500);
+    background: var(--surface); border: 1px solid var(--base300); border-radius: 999px;
+    padding: 0.2rem 0.65rem; text-decoration: none; white-space: nowrap;
+  }
+  .switch-link:hover { color: var(--base900); border-color: var(--base900); }
   .muted { color: var(--base500); font-size: 0.9rem; }
   a { color: var(--prim600); }
   form.inline { display: inline; }
@@ -174,7 +193,51 @@
   .theme-toggle .icon-light { display: none; }
   :root[data-theme="light"] .theme-toggle .icon-dark { display: none; }
   :root[data-theme="light"] .theme-toggle .icon-light { display: inline; }
+
+  .invite-code { display: inline-flex; align-items: center; gap: 0.4rem; vertical-align: middle; }
+  .invite-code code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--base100); padding: 0.2rem 0.55rem; border-radius: 0.375rem;
+    font-size: 0.85rem; color: var(--base900); vertical-align: middle;
+  }
+  .copy-btn {
+    padding: 0.35rem 0.75rem; font-size: 0.8rem;
+    min-height: 2.25rem; min-width: 2.25rem; vertical-align: middle;
+  }
+  .copy-btn.copied { background: var(--prim600); border-color: var(--prim600); color: #fff; }
 </style>
+<script>
+  async function copyInviteCode(btn) {
+    const link = window.location.origin + '/invite/' + btn.dataset.copy;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = link;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    } catch (err) {
+      console.error('copy failed', err);
+      return;
+    }
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.classList.remove('copied');
+      btn.disabled = false;
+    }, 1500);
+  }
+</script>
 {{end}}
 
 {{define "theme-toggle"}}

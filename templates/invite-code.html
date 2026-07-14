@@ -1,0 +1,6 @@
+{{define "invite-code"}}
+<span class="invite-code">
+  <code>{{.}}</code>
+  <button type="button" class="copy-btn" data-copy="{{.}}" onclick="copyInviteCode(this)" aria-label="Copy invite link">Copy link</button>
+</span>
+{{end}}

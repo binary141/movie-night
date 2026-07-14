@@ -14,10 +14,12 @@
     </header>
 
     {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+    {{if .Invite}}<p class="muted">You've been invited to a theater — sign in or create an account to join it.</p>{{end}}
 
     <div class="card">
       <h2>Sign in</h2>
       <form method="post" action="/login">
+        {{if .Invite}}<input type="hidden" name="invite" value="{{.Invite}}">{{end}}
         <label for="login-username">Username</label>
         <input id="login-username" type="text" name="username" required autofocus>
         <label for="login-password">Password</label>
@@ -29,6 +31,7 @@
     <div class="card">
       <h2>New here? Create an account</h2>
       <form method="post" action="/register">
+        {{if .Invite}}<input type="hidden" name="invite" value="{{.Invite}}">{{end}}
         <label for="reg-username">Username</label>
         <input id="reg-username" type="text" name="username" maxlength="50" required>
         <label for="reg-password">Password <span class="muted">(4+ characters)</span></label>
