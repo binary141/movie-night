@@ -1,0 +1,12 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/movie-night ."
+  bin = "./tmp/movie-night"
+  include_ext = ["go", "html"]
+  exclude_dir = ["tmp", "vendor"]
+  delay = 200
+
+[misc]
+  clean_on_exit = true

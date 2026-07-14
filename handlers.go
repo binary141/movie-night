@@ -22,6 +22,7 @@ type App struct {
 	store *Store
 	tmpl  *template.Template
 	omdb  *OMDB
+	hub   *Hub
 }
 
 type ctxKey string
@@ -309,6 +310,12 @@ func (a *App) index(w http.ResponseWriter, r *http.Request) {
 	a.render(w, "index.html", data)
 }
 
+// board re-renders the movie board for the requesting user — used both by
+// the normal htmx swaps and by clients reacting to a websocket notification.
+func (a *App) board(w http.ResponseWriter, r *http.Request) {
+	a.renderBoard(w, r)
+}
+
 func (a *App) theaterOverview(w http.ResponseWriter, r *http.Request) {
 	theater := currentTheater(r)
 	members, err := a.store.ListMembers(r.Context(), theater.ID)
@@ -375,6 +382,7 @@ func (a *App) addMovie(w http.ResponseWriter, r *http.Request) {
 			a.serverError(w, err)
 			return
 		}
+		a.hub.Broadcast()
 	}
 	a.renderBoard(w, r)
 }
@@ -433,6 +441,7 @@ func (a *App) vote(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	a.hub.Broadcast()
 	a.renderBoard(w, r)
 }
 
@@ -446,6 +455,7 @@ func (a *App) markWatched(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	a.hub.Broadcast()
 	a.renderBoard(w, r)
 }
 

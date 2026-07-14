@@ -18,6 +18,7 @@
         </div>
       </div>
       <div>
+        {{template "theme-toggle"}}
         <span class="muted">hi, {{.Username}}</span>
         <form class="inline" method="post" action="/logout">
           <button type="submit" class="linkish">sign out</button>
@@ -40,5 +41,15 @@
       {{template "movie-board" .}}
     </div>
   </main>
+  <script>
+    (function connect() {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(proto + "//" + location.host + "/ws");
+      ws.onmessage = () => {
+        htmx.ajax("GET", "/t/{{.TheaterID}}/board", { target: "#movie-board", swap: "innerHTML" });
+      };
+      ws.onclose = () => setTimeout(connect, 1000);
+    })();
+  </script>
 </body>
 </html>

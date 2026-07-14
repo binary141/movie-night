@@ -10,9 +10,12 @@
   <main>
     <header class="topbar">
       <h1>🍿 Movie Night</h1>
-      <form class="inline" method="post" action="/logout">
-        <button type="submit" class="linkish">sign out</button>
-      </form>
+      <div>
+        {{template "theme-toggle"}}
+        <form class="inline" method="post" action="/logout">
+          <button type="submit" class="linkish">sign out</button>
+        </form>
+      </div>
     </header>
 
     {{if .Error}}<div class="error">{{.Error}}</div>{{end}}

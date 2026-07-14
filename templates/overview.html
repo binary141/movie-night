@@ -17,6 +17,7 @@
         </div>
       </div>
       <div>
+        {{template "theme-toggle"}}
         <span class="muted">hi, {{.Username}}</span>
         <form class="inline" method="post" action="/logout">
           <button type="submit" class="linkish">sign out</button>
