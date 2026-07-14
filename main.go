@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"html/template"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +16,9 @@ import (
 
 //go:embed templates/*.html
 var templateFS embed.FS
+
+//go:embed static
+var staticFS embed.FS
 
 func main() {
 	loadDotEnv(".env")
@@ -40,7 +44,20 @@ func main() {
 
 	app := &App{store: &Store{pool: pool}, tmpl: tmpl, omdb: omdb, hub: NewHub()}
 
+	static, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		log.Fatal(err)
+	}
+	staticServer := http.FileServerFS(static)
+
 	mux := http.NewServeMux()
+	for _, path := range []string{
+		"/favicon.ico", "/favicon-16x16.png", "/favicon-32x32.png",
+		"/apple-touch-icon.png", "/android-chrome-192x192.png", "/android-chrome-512x512.png",
+		"/site.webmanifest",
+	} {
+		mux.Handle("GET "+path, staticServer)
+	}
 	mux.HandleFunc("GET /login", app.loginPage)
 	mux.HandleFunc("POST /login", app.login)
 	mux.HandleFunc("POST /register", app.register)
