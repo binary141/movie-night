@@ -16,6 +16,7 @@ services:
       retries: 30
 
   app:
+    profiles: ["prod"]
     build: .
     ports:
       - "3411:3411"
@@ -28,6 +29,24 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+
+  app-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3411:3411"
+    environment:
+      DATABASE_URL: postgres://movienight:movienight@db:5432/movienight?sslmode=disable
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/src
 
 volumes:
   pgdata:
