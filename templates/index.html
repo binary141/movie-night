@@ -12,6 +12,7 @@
     <header class="topbar">
       <h1>🍿 Movie Night</h1>
       <div>
+        {{template "theme-toggle"}}
         {{if .LoggedIn}}
         <span class="muted">hi, {{.Username}}</span>
         <form class="inline" method="post" action="/logout">
@@ -42,5 +43,17 @@
       {{template "movie-board" .}}
     </div>
   </main>
+  {{if .LoggedIn}}
+  <script>
+    (function connect() {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(proto + "//" + location.host + "/ws");
+      ws.onmessage = () => {
+        htmx.ajax("GET", "/board", { target: "#movie-board", swap: "innerHTML" });
+      };
+      ws.onclose = () => setTimeout(connect, 1000);
+    })();
+  </script>
+  {{end}}
 </body>
 </html>
