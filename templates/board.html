@@ -18,6 +18,7 @@
       </div>
       <div class="actions">
         <span class="count">{{.Votes}} vote{{if ne .Votes 1}}s{{end}}</span>
+        {{if $.IsMember}}
         <button hx-post="/t/{{$.TheaterID}}/vote/{{.ID}}" hx-target="#movie-board"
                 class="{{if .VotedByMe}}voted{{end}}">
           {{if .VotedByMe}}✓ Voted{{else}}Vote{{end}}
@@ -31,6 +32,7 @@
                 hx-confirm="Remove “{{.Title}}” from the queue?" class="danger">
           Remove
         </button>
+        {{end}}
         {{end}}
       </div>
     </li>

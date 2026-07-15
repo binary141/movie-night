@@ -44,6 +44,7 @@ type theatersData struct {
 
 type pageData struct {
 	LoggedIn    bool
+	IsMember    bool
 	Username    string
 	TheaterID   int
 	TheaterName string
@@ -81,6 +82,46 @@ func (a *App) requireUser(next func(http.ResponseWriter, *http.Request)) http.Ha
 		}
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	})
+}
+
+// optionalUser loads the current user into context when a valid session
+// cookie is present, but never blocks the request — anonymous visitors
+// continue with no user (currentUser(r).ID == 0). Used for read-only pages
+// that anyone with the link may view.
+func (a *App) optionalUser(next func(http.ResponseWriter, *http.Request)) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if cookie, err := r.Cookie(sessionCookie); err == nil {
+			if user, err := a.store.GetSessionUser(r.Context(), cookie.Value); err == nil {
+				r = r.WithContext(context.WithValue(r.Context(), userKey, user))
+			}
+		}
+		next(w, r)
+	})
+}
+
+// loadTheater reads {theaterID} from the path and stashes the Theater in
+// context without any membership check — anyone with the link (or the id)
+// may view it. Actions that mutate the board still go through
+// requireTheaterMember. Pair with optionalUser so currentUser(r) is set when
+// available.
+func (a *App) loadTheater(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		theaterID, err := strconv.Atoi(r.PathValue("theaterID"))
+		if err != nil {
+			http.Error(w, "bad theater id", http.StatusBadRequest)
+			return
+		}
+		theater, err := a.store.GetTheater(r.Context(), theaterID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				http.NotFound(w, r)
+				return
+			}
+			a.serverError(w, err)
+			return
+		}
+		next(w, r.WithContext(context.WithValue(r.Context(), theaterKey, theater)))
+	}
 }
 
 // requireTheaterMember reads {theaterID} from the path and confirms the
@@ -490,6 +531,14 @@ func (a *App) markWatched(w http.ResponseWriter, r *http.Request) {
 func (a *App) boardData(r *http.Request) (pageData, error) {
 	user := currentUser(r)
 	theater := currentTheater(r)
+	isMember := false
+	if user.ID != 0 {
+		ok, err := a.store.IsMember(r.Context(), theater.ID, user.ID)
+		if err != nil {
+			return pageData{}, err
+		}
+		isMember = ok
+	}
 	movies, err := a.store.ListMovies(r.Context(), theater.ID, user.ID)
 	if err != nil {
 		return pageData{}, err
@@ -500,6 +549,7 @@ func (a *App) boardData(r *http.Request) (pageData, error) {
 	}
 	return pageData{
 		LoggedIn:    user.ID != 0,
+		IsMember:    isMember,
 		Username:    user.Username,
 		TheaterID:   theater.ID,
 		TheaterName: theater.Name,
