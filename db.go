@@ -51,6 +51,12 @@ ALTER TABLE movies ADD COLUMN IF NOT EXISTS year TEXT NOT NULL DEFAULT '';
 ALTER TABLE movies ADD COLUMN IF NOT EXISTS poster TEXT NOT NULL DEFAULT '';
 ALTER TABLE movies ADD COLUMN IF NOT EXISTS theater_id INT REFERENCES theaters(id) ON DELETE CASCADE;
 ALTER TABLE movies ADD COLUMN IF NOT EXISTS imdb_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS rated TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS runtime TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS genre TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS director TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS plot TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS imdb_rating TEXT NOT NULL DEFAULT '';
 
 -- user_id is part of the primary key: each user has at most one active
 -- vote per theater (see backfillTheaters, which upgrades the PK to
@@ -66,6 +72,12 @@ ALTER TABLE votes ADD COLUMN IF NOT EXISTS theater_id INT REFERENCES theaters(id
 CREATE TABLE IF NOT EXISTS search_cache (
 	query TEXT PRIMARY KEY,
 	results JSONB NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS title_cache (
+	key TEXT PRIMARY KEY,
+	result JSONB NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -177,15 +189,21 @@ type Theater struct {
 }
 
 type MovieRow struct {
-	ID        int
-	Title     string
-	ImdbID    string
-	Year      string
-	Poster    string
-	AddedBy   string
-	Votes     int
-	VotedByMe bool
-	AddedAt   time.Time
+	ID         int
+	Title      string
+	ImdbID     string
+	Year       string
+	Poster     string
+	Rated      string
+	Runtime    string
+	Genre      string
+	Director   string
+	Plot       string
+	ImdbRating string
+	AddedBy    string
+	Votes      int
+	VotedByMe  bool
+	AddedAt    time.Time
 }
 
 type WatchedRow struct {
@@ -228,16 +246,20 @@ func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
-func (s *Store) AddMovie(ctx context.Context, theaterID int, title, imdbID, year, poster string, userID int) error {
+func (s *Store) AddMovie(ctx context.Context, theaterID int, title, imdbID, year, poster string, details TitleSearchResult, userID int) error {
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO movies (theater_id, title, imdb_id, year, poster, added_by) VALUES ($1, $2, $3, $4, $5, $6)`,
-		theaterID, title, imdbID, year, poster, userID)
+		`INSERT INTO movies (theater_id, title, imdb_id, year, poster, rated, runtime, genre, director, plot, imdb_rating, added_by)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		theaterID, title, imdbID, year, poster,
+		details.Rated, details.Runtime, details.Genre, details.Director, details.Plot, details.ImdbRating,
+		userID)
 	return err
 }
 
 func (s *Store) ListMovies(ctx context.Context, theaterID, currentUserID int) ([]MovieRow, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT m.id, m.title, m.imdb_id, m.year, m.poster, u.username,
+		`SELECT m.id, m.title, m.imdb_id, m.year, m.poster,
+		        m.rated, m.runtime, m.genre, m.director, m.plot, m.imdb_rating, u.username,
 		        count(v.user_id) AS votes,
 		        coalesce(bool_or(v.user_id = $1), false) AS voted_by_me,
 		        m.created_at
@@ -255,7 +277,9 @@ func (s *Store) ListMovies(ctx context.Context, theaterID, currentUserID int) ([
 	var movies []MovieRow
 	for rows.Next() {
 		var m MovieRow
-		if err := rows.Scan(&m.ID, &m.Title, &m.ImdbID, &m.Year, &m.Poster, &m.AddedBy, &m.Votes, &m.VotedByMe, &m.AddedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.Title, &m.ImdbID, &m.Year, &m.Poster,
+			&m.Rated, &m.Runtime, &m.Genre, &m.Director, &m.Plot, &m.ImdbRating,
+			&m.AddedBy, &m.Votes, &m.VotedByMe, &m.AddedAt); err != nil {
 			return nil, err
 		}
 		movies = append(movies, m)
@@ -459,6 +483,34 @@ func (s *Store) CacheSearch(ctx context.Context, query string, results []SearchR
 		`INSERT INTO search_cache (query, results) VALUES ($1, $2::jsonb)
 		 ON CONFLICT (query) DO UPDATE SET results = EXCLUDED.results, created_at = now()`,
 		query, string(data))
+	return err
+}
+
+// GetCachedTitle returns a cached OMDb title lookup for a normalized key
+// (imdbID, or lowercased title when no id is known).
+func (s *Store) GetCachedTitle(ctx context.Context, key string) (TitleSearchResult, bool, error) {
+	var result TitleSearchResult
+	err := s.pool.QueryRow(ctx,
+		`SELECT result FROM title_cache WHERE key = $1`,
+		key).Scan(&result)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TitleSearchResult{}, false, nil
+	}
+	if err != nil {
+		return TitleSearchResult{}, false, err
+	}
+	return result, true, nil
+}
+
+func (s *Store) CacheTitle(ctx context.Context, key string, result TitleSearchResult) error {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx,
+		`INSERT INTO title_cache (key, result) VALUES ($1, $2::jsonb)
+		 ON CONFLICT (key) DO UPDATE SET result = EXCLUDED.result, created_at = now()`,
+		key, string(data))
 	return err
 }
 
