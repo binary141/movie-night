@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS movies (
 ALTER TABLE movies ADD COLUMN IF NOT EXISTS year TEXT NOT NULL DEFAULT '';
 ALTER TABLE movies ADD COLUMN IF NOT EXISTS poster TEXT NOT NULL DEFAULT '';
 ALTER TABLE movies ADD COLUMN IF NOT EXISTS theater_id INT REFERENCES theaters(id) ON DELETE CASCADE;
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS imdb_id TEXT NOT NULL DEFAULT '';
 
 -- user_id is part of the primary key: each user has at most one active
 -- vote per theater (see backfillTheaters, which upgrades the PK to
@@ -178,6 +179,7 @@ type Theater struct {
 type MovieRow struct {
 	ID        int
 	Title     string
+	ImdbID    string
 	Year      string
 	Poster    string
 	AddedBy   string
@@ -226,16 +228,16 @@ func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
-func (s *Store) AddMovie(ctx context.Context, theaterID int, title, year, poster string, userID int) error {
+func (s *Store) AddMovie(ctx context.Context, theaterID int, title, imdbID, year, poster string, userID int) error {
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO movies (theater_id, title, year, poster, added_by) VALUES ($1, $2, $3, $4, $5)`,
-		theaterID, title, year, poster, userID)
+		`INSERT INTO movies (theater_id, title, imdb_id, year, poster, added_by) VALUES ($1, $2, $3, $4, $5, $6)`,
+		theaterID, title, imdbID, year, poster, userID)
 	return err
 }
 
 func (s *Store) ListMovies(ctx context.Context, theaterID, currentUserID int) ([]MovieRow, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT m.id, m.title, m.year, m.poster, u.username,
+		`SELECT m.id, m.title, m.imdb_id, m.year, m.poster, u.username,
 		        count(v.user_id) AS votes,
 		        coalesce(bool_or(v.user_id = $1), false) AS voted_by_me,
 		        m.created_at
@@ -253,7 +255,7 @@ func (s *Store) ListMovies(ctx context.Context, theaterID, currentUserID int) ([
 	var movies []MovieRow
 	for rows.Next() {
 		var m MovieRow
-		if err := rows.Scan(&m.ID, &m.Title, &m.Year, &m.Poster, &m.AddedBy, &m.Votes, &m.VotedByMe, &m.AddedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.Title, &m.ImdbID, &m.Year, &m.Poster, &m.AddedBy, &m.Votes, &m.VotedByMe, &m.AddedAt); err != nil {
 			return nil, err
 		}
 		movies = append(movies, m)

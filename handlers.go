@@ -375,10 +375,11 @@ func (a *App) removeMember(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) addMovie(w http.ResponseWriter, r *http.Request) {
 	title := strings.TrimSpace(r.FormValue("title"))
+	imdbID := strings.TrimSpace(r.FormValue("imdbid"))
 	year := strings.TrimSpace(r.FormValue("year"))
 	poster := strings.TrimSpace(r.FormValue("poster"))
-	if title != "" && len(title) <= 200 && len(year) <= 20 && len(poster) <= 500 {
-		if err := a.store.AddMovie(r.Context(), currentTheater(r).ID, title, year, poster, currentUser(r).ID); err != nil {
+	if title != "" && len(title) <= 200 && len(imdbID) <= 20 && len(year) <= 20 && len(poster) <= 500 {
+		if err := a.store.AddMovie(r.Context(), currentTheater(r).ID, title, imdbID, year, poster, currentUser(r).ID); err != nil {
 			a.serverError(w, err)
 			return
 		}
@@ -431,6 +432,8 @@ func (a *App) search(w http.ResponseWriter, r *http.Request) {
 	if len(results) > 6 {
 		results = results[:6]
 	}
+
+	log.Printf("%+v", results)
 	a.render(w, "search-results", searchData{TheaterID: theaterID, Results: results})
 }
 

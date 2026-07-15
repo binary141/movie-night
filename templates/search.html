@@ -18,6 +18,7 @@
     <form hx-post="/t/{{$.TheaterID}}/movies" hx-target="#movie-board"
           hx-on::after-request="document.getElementById('search-results').innerHTML = ''; document.getElementById('title-input').value = '';">
       <input type="hidden" name="title" value="{{.Title}}">
+      <input type="hidden" name="imdbid" value="{{.ImdbID}}">
       <input type="hidden" name="year" value="{{.Year}}">
       <input type="hidden" name="poster" value="{{.Poster}}">
       <button type="submit">+ Add</button>
