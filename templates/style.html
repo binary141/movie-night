@@ -124,6 +124,37 @@
   .add-form button { flex-shrink: 0; }
 
   .movie-main { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+  button.movie-open {
+    background: none; border: none; padding: 0; margin: 0;
+    text-align: left; box-shadow: none; font: inherit; color: inherit;
+    letter-spacing: inherit; cursor: pointer; flex: 1; min-width: 0;
+  }
+  button.movie-open:hover .info strong { text-decoration: underline; }
+
+  dialog.movie-modal {
+    max-width: 28rem; width: calc(100vw - 2.5rem);
+    background: var(--surface); color: var(--base900);
+    border: 1.5px solid var(--base900); border-radius: 0.75rem;
+    padding: 1.5rem; margin: auto;
+  }
+  dialog.movie-modal::backdrop { background: #00000080; }
+  dialog.movie-modal form { display: flex; justify-content: flex-end; margin: -0.5rem -0.5rem 0 0; }
+  .modal-close { border: none; padding: 0.25rem 0.5rem; font-size: 1rem; }
+  .modal-main { display: flex; gap: 1rem; align-items: flex-start; }
+  .poster-lg, .poster-lg.placeholder {
+    width: 6rem; height: 8.5rem; object-fit: cover; border-radius: 0.5rem;
+    flex-shrink: 0; background: var(--base100);
+    display: flex; align-items: center; justify-content: center; font-size: 2rem;
+  }
+  .modal-info h3 { margin: 0 0 0.4rem; font-size: 1.2rem; font-weight: 600; letter-spacing: -0.014em; }
+  .modal-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.4rem; }
+  .modal-meta .pill {
+    background: var(--base100); color: var(--base700);
+    border-radius: 999px; padding: 0.15rem 0.65rem; font-size: 0.8rem; font-weight: 500;
+  }
+  .modal-meta .pill.rating { background: var(--prim100); color: var(--prim600); }
+  .modal-plot { margin: 1rem 0 0; color: var(--base700); font-size: 0.95rem; line-height: 1.5; }
+  .imdb-link { display: inline-block; margin-top: 1rem; font-size: 0.9rem; }
   img.poster, .poster.placeholder {
     width: 3rem; height: 4.25rem; object-fit: cover; border-radius: 0.5rem;
     flex-shrink: 0; background: var(--base100);
