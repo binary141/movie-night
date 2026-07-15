@@ -495,7 +495,6 @@ func (a *App) search(w http.ResponseWriter, r *http.Request) {
 		results = results[:6]
 	}
 
-	log.Printf("%+v", results)
 	a.render(w, "search-results", searchData{TheaterID: theaterID, Results: results})
 }
 

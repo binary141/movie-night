@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -79,7 +78,6 @@ func (o *OMDB) Search(ctx context.Context, query string) ([]SearchResult, error)
 		if poster == "N/A" {
 			poster = ""
 		}
-		log.Printf("%+v", r.ImdbID)
 		results = append(results, SearchResult{Title: r.Title, ImdbID: r.ImdbID, Year: r.Year, Poster: poster})
 	}
 	return results, nil
