@@ -135,9 +135,10 @@
     max-width: 28rem; width: calc(100vw - 2.5rem);
     background: var(--surface); color: var(--base900);
     border: 1.5px solid var(--base900); border-radius: 0.75rem;
-    padding: 1.5rem; margin: auto;
+    padding: 0; margin: auto;
   }
   dialog.movie-modal::backdrop { background: #00000080; }
+  dialog.movie-modal .modal-body { padding: 1.5rem; }
   dialog.movie-modal form { display: flex; justify-content: flex-end; margin: -0.5rem -0.5rem 0 0; }
   .modal-close { border: none; padding: 0.25rem 0.5rem; font-size: 1rem; }
   .modal-main { display: flex; gap: 1rem; align-items: flex-start; }
