@@ -345,6 +345,16 @@ func (s *Store) JoinTheaterByCode(ctx context.Context, code string, userID int) 
 	return t, nil
 }
 
+// GetTheaterByCode resolves an invite code to its theater without joining
+// anyone — used to send a logged-out visitor to the read-only board.
+func (s *Store) GetTheaterByCode(ctx context.Context, code string) (Theater, error) {
+	var t Theater
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, name, invite_code, created_by FROM theaters WHERE invite_code = $1`, code).
+		Scan(&t.ID, &t.Name, &t.InviteCode, &t.CreatedBy)
+	return t, err
+}
+
 func (s *Store) ListUserTheaters(ctx context.Context, userID int) ([]Theater, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT t.id, t.name, t.invite_code FROM theaters t

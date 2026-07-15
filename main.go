@@ -67,10 +67,13 @@ func main() {
 	mux.Handle("GET /theaters", app.requireUser(app.theatersPage))
 	mux.Handle("POST /theaters", app.requireUser(app.createTheater))
 	mux.Handle("POST /theaters/join", app.requireUser(app.joinTheater))
-	mux.Handle("GET /ws", app.requireUser(app.serveWS))
-	mux.Handle("GET /t/{theaterID}/", app.requireUser(app.requireTheaterMember(app.index)))
+	mux.HandleFunc("GET /ws", app.serveWS)
+	// The board itself is viewable by anyone with the link or theater id,
+	// including logged-out visitors; mutating actions below still require
+	// membership.
+	mux.Handle("GET /t/{theaterID}/", app.optionalUser(app.loadTheater(app.index)))
 	mux.Handle("GET /t/{theaterID}/search", app.requireUser(app.requireTheaterMember(app.search)))
-	mux.Handle("GET /t/{theaterID}/board", app.requireUser(app.requireTheaterMember(app.board)))
+	mux.Handle("GET /t/{theaterID}/board", app.optionalUser(app.loadTheater(app.board)))
 	mux.Handle("GET /t/{theaterID}/overview", app.requireUser(app.requireTheaterMember(app.theaterOverview)))
 	mux.Handle("POST /t/{theaterID}/delete", app.requireUser(app.requireTheaterMember(app.deleteTheater)))
 	mux.Handle("POST /t/{theaterID}/members/{userID}/remove", app.requireUser(app.requireTheaterMember(app.removeMember)))
