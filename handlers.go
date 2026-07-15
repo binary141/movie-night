@@ -424,16 +424,56 @@ func (a *App) removeMember(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) addMovie(w http.ResponseWriter, r *http.Request) {
 	title := strings.TrimSpace(r.FormValue("title"))
+	imdbID := strings.TrimSpace(r.FormValue("imdbid"))
 	year := strings.TrimSpace(r.FormValue("year"))
 	poster := strings.TrimSpace(r.FormValue("poster"))
-	if title != "" && len(title) <= 200 && len(year) <= 20 && len(poster) <= 500 {
-		if err := a.store.AddMovie(r.Context(), currentTheater(r).ID, title, year, poster, currentUser(r).ID); err != nil {
+	if title != "" && len(title) <= 200 && len(imdbID) <= 20 && len(year) <= 20 && len(poster) <= 500 {
+		details := a.lookupTitleDetails(r.Context(), imdbID, title)
+		if err := a.store.AddMovie(r.Context(), currentTheater(r).ID, title, imdbID, year, poster, details, currentUser(r).ID); err != nil {
 			a.serverError(w, err)
 			return
 		}
 		a.hub.Broadcast()
 	}
 	a.renderBoard(w, r)
+}
+
+// lookupTitleDetails fetches Plot/Runtime/Genre/Director/Rating for a movie
+// being added, cache-first like the search endpoint. It never fails the add
+// — on a miss or an OMDb error, the movie is still added with these details
+// left blank.
+func (a *App) lookupTitleDetails(ctx context.Context, imdbID, title string) TitleSearchResult {
+	if a.omdb == nil {
+		return TitleSearchResult{}
+	}
+
+	// Cache key: imdbID when we have one (exact), otherwise the
+	// normalized title, matching the search cache's key style.
+	key := imdbID
+	if key == "" {
+		key = strings.ToLower(strings.Join(strings.Fields(title), " "))
+	}
+
+	details, hit, err := a.store.GetCachedTitle(ctx, key)
+	if err != nil {
+		log.Printf("title cache read %q: %v", key, err)
+	}
+	if hit {
+		return details
+	}
+
+	result, err := a.omdb.SearchTitle(ctx, imdbID, title)
+	if err != nil {
+		log.Printf("omdb title lookup %q: %v", key, err)
+		return TitleSearchResult{}
+	}
+	if result == nil {
+		result = &TitleSearchResult{}
+	}
+	if err := a.store.CacheTitle(ctx, key, *result); err != nil {
+		log.Printf("title cache write %q: %v", key, err)
+	}
+	return *result
 }
 
 // deleteMovie removes a pending movie. Only the person who added it, or the
@@ -503,6 +543,7 @@ func (a *App) search(w http.ResponseWriter, r *http.Request) {
 	if len(results) > 6 {
 		results = results[:6]
 	}
+
 	a.render(w, "search-results", searchData{TheaterID: theaterID, Results: results})
 }
 

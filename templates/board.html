@@ -5,7 +5,7 @@
   <ul class="movies">
     {{range .Movies}}
     <li>
-      <div class="movie-main">
+      <button type="button" class="movie-main movie-open" onclick="document.getElementById('movie-modal-{{.ID}}').showModal()">
         {{if .Poster}}
         <img class="poster" src="{{.Poster}}" alt="" loading="lazy">
         {{else}}
@@ -15,7 +15,7 @@
           <strong>{{.Title}}</strong>{{if .Year}} <span class="muted">({{.Year}})</span>{{end}}
           <div class="muted">added by {{.AddedBy}} on {{.AddedAt.Format "Jan 2, 2006"}}</div>
         </div>
-      </div>
+      </button>
       <div class="actions">
         <span class="count">{{.Votes}} vote{{if ne .Votes 1}}s{{end}}</span>
         {{if $.IsMember}}
@@ -35,6 +35,32 @@
         {{end}}
         {{end}}
       </div>
+      <dialog id="movie-modal-{{.ID}}" class="movie-modal" onclick="if (event.target === this) this.close()">
+        <div class="modal-body">
+          <form method="dialog">
+            <button type="submit" class="linkish modal-close" aria-label="Close">✕</button>
+          </form>
+          <div class="modal-main">
+            {{if .Poster}}
+            <img class="poster-lg" src="{{.Poster}}" alt="" loading="lazy">
+            {{else}}
+            <div class="poster-lg placeholder">🎬</div>
+            {{end}}
+            <div class="modal-info">
+              <h3>{{.Title}}{{if .Year}} <span class="muted">({{.Year}})</span>{{end}}</h3>
+              <div class="modal-meta">
+                {{if .Rated}}<span class="pill">{{.Rated}}</span>{{end}}
+                {{if .Runtime}}<span class="pill">{{.Runtime}}</span>{{end}}
+                {{if .ImdbRating}}<span class="pill rating">★ {{.ImdbRating}}</span>{{end}}
+              </div>
+              {{if .Genre}}<div class="muted">{{.Genre}}</div>{{end}}
+              {{if .Director}}<div class="muted">Directed by {{.Director}}</div>{{end}}
+            </div>
+          </div>
+          {{if .Plot}}<p class="modal-plot">{{.Plot}}</p>{{end}}
+          {{if .ImdbID}}<a class="imdb-link" href="https://www.imdb.com/title/{{.ImdbID}}/" target="_blank" rel="noopener">View on IMDb ↗</a>{{end}}
+        </div>
+      </dialog>
     </li>
     {{end}}
   </ul>
