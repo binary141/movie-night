@@ -48,6 +48,7 @@ type pageData struct {
 	Username    string
 	TheaterID   int
 	TheaterName string
+	LoginURL    string
 	Movies      []MovieRow
 	Watched     []WatchedRow
 }
@@ -275,8 +276,9 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 // invite handles a shared invite link. Logged-in users join the theater
-// immediately; logged-out visitors are sent to sign in/register first, and
-// pick the theater back up once authenticated.
+// immediately; logged-out visitors land on the read-only board so they can
+// see the queue, with the invite code carried along so signing in from there
+// still joins them.
 func (a *App) invite(w http.ResponseWriter, r *http.Request) {
 	code := strings.TrimSpace(strings.ToLower(r.PathValue("code")))
 	if cookie, err := r.Cookie(sessionCookie); err == nil {
@@ -285,7 +287,13 @@ func (a *App) invite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	http.Redirect(w, r, "/login?invite="+url.QueryEscape(code), http.StatusSeeOther)
+	theater, err := a.store.GetTheaterByCode(r.Context(), code)
+	if err != nil {
+		// Unknown or bad code — fall back to the sign-in page.
+		http.Redirect(w, r, "/login?invite="+url.QueryEscape(code), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/t/%d/?invite=%s", theater.ID, url.QueryEscape(code)), http.StatusSeeOther)
 }
 
 // --- pages ---
@@ -547,12 +555,19 @@ func (a *App) boardData(r *http.Request) (pageData, error) {
 	if err != nil {
 		return pageData{}, err
 	}
+	// Carry an invite code (if the visitor arrived via one) into the sign-in
+	// link so authenticating from the read-only view still joins the theater.
+	loginURL := "/login"
+	if invite := strings.TrimSpace(r.URL.Query().Get("invite")); invite != "" {
+		loginURL = "/login?invite=" + url.QueryEscape(invite)
+	}
 	return pageData{
 		LoggedIn:    user.ID != 0,
 		IsMember:    isMember,
 		Username:    user.Username,
 		TheaterID:   theater.ID,
 		TheaterName: theater.Name,
+		LoginURL:    loginURL,
 		Movies:      movies,
 		Watched:     watched,
 	}, nil

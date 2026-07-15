@@ -29,7 +29,7 @@
           <button type="submit" class="linkish">sign out</button>
         </form>
         {{else}}
-        <a class="signin" href="/login">Sign in</a>
+        <a class="signin" href="{{.LoginURL}}">Sign in</a>
         {{end}}
       </div>
     </header>
@@ -47,7 +47,7 @@
     <p class="muted">Pick a search result (or just hit Add). Everyone gets one vote — click again to remove it, or vote elsewhere to move it.</p>
     {{else}}
     <p class="muted">You're viewing this theater's queue.
-      {{if .LoggedIn}}Join it to add movies and vote.{{else}}<a href="/login">Sign in</a> to add movies and vote.{{end}}
+      {{if .LoggedIn}}Join it to add movies and vote.{{else}}<a href="{{.LoginURL}}">Sign in</a> to add movies and vote.{{end}}
     </p>
     {{end}}
 
