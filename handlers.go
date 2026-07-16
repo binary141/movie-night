@@ -559,13 +559,16 @@ func (a *App) search(w http.ResponseWriter, r *http.Request) {
 	a.render(w, "search-results", searchData{TheaterID: theaterID, Results: results})
 }
 
-func (a *App) vote(w http.ResponseWriter, r *http.Request) {
+func (a *App) upvote(w http.ResponseWriter, r *http.Request)   { a.vote(w, r, 1) }
+func (a *App) downvote(w http.ResponseWriter, r *http.Request) { a.vote(w, r, -1) }
+
+func (a *App) vote(w http.ResponseWriter, r *http.Request, value int) {
 	movieID, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "bad movie id", http.StatusBadRequest)
 		return
 	}
-	if err := a.store.ToggleVote(r.Context(), currentTheater(r).ID, currentUser(r).ID, movieID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err := a.store.SetVote(r.Context(), currentTheater(r).ID, currentUser(r).ID, movieID, value); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		a.serverError(w, err)
 		return
 	}

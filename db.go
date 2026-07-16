@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS votes (
 );
 
 ALTER TABLE votes ADD COLUMN IF NOT EXISTS theater_id INT REFERENCES theaters(id) ON DELETE CASCADE;
+ALTER TABLE votes ADD COLUMN IF NOT EXISTS value SMALLINT NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS search_cache (
 	query TEXT PRIMARY KEY,
@@ -95,7 +96,27 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	if err := backfillTheaters(ctx, pool); err != nil {
 		return err
 	}
-	return allowMultipleVotes(ctx, pool)
+	if err := allowMultipleVotes(ctx, pool); err != nil {
+		return err
+	}
+	return addVoteValueCheck(ctx, pool)
+}
+
+// addVoteValueCheck constrains votes.value to +1 (upvote) or -1 (downvote).
+// It's added out-of-band from the CREATE TABLE/ALTER COLUMN above because
+// Postgres has no ADD CONSTRAINT IF NOT EXISTS.
+func addVoteValueCheck(ctx context.Context, pool *pgxpool.Pool) error {
+	var exists bool
+	err := pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'votes_value_check')`).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	_, err = pool.Exec(ctx, `ALTER TABLE votes ADD CONSTRAINT votes_value_check CHECK (value IN (1, -1))`)
+	return err
 }
 
 // allowMultipleVotes widens the votes primary key from (user_id,
@@ -237,7 +258,7 @@ type MovieRow struct {
 	ImdbRating string
 	AddedBy    string
 	Votes      int
-	VotedByMe  bool
+	MyVote     int // 1 if the current user upvoted, -1 if downvoted, 0 otherwise
 	AddedAt    time.Time
 	CanDelete  bool
 }
@@ -309,8 +330,8 @@ func (s *Store) ListMovies(ctx context.Context, theaterID, currentUserID int) ([
 	rows, err := s.pool.Query(ctx,
 		`SELECT m.id, m.title, m.imdb_id, m.year, m.poster,
 		        m.rated, m.runtime, m.genre, m.director, m.plot, m.imdb_rating, u.username,
-		        count(v.user_id) AS votes,
-		        coalesce(bool_or(v.user_id = $1), false) AS voted_by_me,
+		        coalesce(sum(v.value), 0) AS votes,
+		        coalesce(max(v.value) FILTER (WHERE v.user_id = $1), 0) AS my_vote,
 		        m.created_at,
 		        (m.added_by = $1 OR t.created_by = $1) AS can_delete
 		 FROM movies m
@@ -330,7 +351,7 @@ func (s *Store) ListMovies(ctx context.Context, theaterID, currentUserID int) ([
 		var m MovieRow
 		if err := rows.Scan(&m.ID, &m.Title, &m.ImdbID, &m.Year, &m.Poster,
 			&m.Rated, &m.Runtime, &m.Genre, &m.Director, &m.Plot, &m.ImdbRating,
-			&m.AddedBy, &m.Votes, &m.VotedByMe, &m.AddedAt, &m.CanDelete); err != nil {
+			&m.AddedBy, &m.Votes, &m.MyVote, &m.AddedAt, &m.CanDelete); err != nil {
 			return nil, err
 		}
 		movies = append(movies, m)
@@ -575,30 +596,33 @@ func (s *Store) CacheTitle(ctx context.Context, key string, result TitleSearchRe
 	return err
 }
 
-// ToggleVote removes the user's vote on this movie if they already have
-// one, otherwise adds it. A user can hold votes on any number of movies
+// SetVote casts the user's vote (value 1 for up, -1 for down) on a movie.
+// Clicking the same direction again clears the vote; clicking the other
+// direction switches it. A user can hold votes on any number of movies
 // within a theater at once.
-func (s *Store) ToggleVote(ctx context.Context, theaterID, userID, movieID int) error {
+func (s *Store) SetVote(ctx context.Context, theaterID, userID, movieID, value int) error {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
 
-	tag, err := tx.Exec(ctx,
-		`DELETE FROM votes WHERE user_id = $1 AND movie_id = $2 AND theater_id = $3`, userID, movieID, theaterID)
-	if err != nil {
+	var existing int
+	err = tx.QueryRow(ctx,
+		`DELETE FROM votes WHERE user_id = $1 AND movie_id = $2 AND theater_id = $3 RETURNING value`,
+		userID, movieID, theaterID).Scan(&existing)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
-		_, err = tx.Exec(ctx,
-			`INSERT INTO votes (user_id, movie_id, theater_id)
-			 SELECT $1, $2, $3 WHERE EXISTS (SELECT 1 FROM movies WHERE id = $2 AND theater_id = $3 AND NOT watched)
-			 ON CONFLICT (user_id, movie_id, theater_id) DO NOTHING`,
-			userID, movieID, theaterID)
-		if err != nil {
-			return err
-		}
+	if err == nil && existing == value {
+		return tx.Commit(ctx)
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO votes (user_id, movie_id, theater_id, value)
+		 SELECT $1, $2, $3, $4 WHERE EXISTS (SELECT 1 FROM movies WHERE id = $2 AND theater_id = $3 AND NOT watched)
+		 ON CONFLICT (user_id, movie_id, theater_id) DO NOTHING`,
+		userID, movieID, theaterID, value); err != nil {
+		return err
 	}
 	return tx.Commit(ctx)
 }
